@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 350" fill="none" role="img" aria-label="splitax">
+  <!-- splitax - thin geometric wordmark; the t is a split capital-T in green, ax tucked close -->
+  <g stroke="#EFEBE3" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- s -->
+    <path d="M150 112 H84 Q44 112 44 141 Q44 170 84 170 H110 Q150 170 150 199 Q150 228 110 228 H44"/>
+    <!-- p : stem + bowl -->
+    <path d="M200 112 V300"/>
+    <path d="M200 112 H250 Q302 112 302 170 Q302 228 250 228 H200"/>
+    <!-- l : vertical with bottom-right curve -->
+    <path d="M347 52 V203 Q347 228 372 228"/>
+    <!-- i : dotless short stem -->
+    <path d="M417 112 V228"/>
+    <!-- a : bowl + right stem, tucked under the T arm -->
+    <path d="M700 112 H652 Q602 112 602 170 Q602 228 652 228 H700"/>
+    <path d="M700 112 V228"/>
+    <!-- x -->
+    <path d="M742 112 L852 228"/>
+    <path d="M852 112 L742 228"/>
+  </g>
+  <g stroke="#1FD760" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+    <!-- split T : left half -->
+    <path d="M514 228 V92 Q514 62 484 62 H442"/>
+    <!-- split T : right half, stem runs past the baseline -->
+    <path d="M546 262 V92 Q546 62 576 62 H618"/>
+  </g>
+</svg>
