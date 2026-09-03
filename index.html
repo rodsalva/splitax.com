@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Splitax — Recuperação de tributo por pagamento no split</title>
+  <meta name="description" content="Splitax vigia cada pagamento dividido pela Reforma Tributária, concilia e recupera IBS e CBS cobrados errado. Camada de execução da Manor." />
+  <meta property="og:title" content="Splitax — Per-payment split-tax recovery" />
+  <meta property="og:description" content="The layer that watches every split-payment and recovers what was taken wrong. Manor's execution layer." />
+  <meta property="og:type" content="website" />
+  <link rel="icon" href="assets/favicon.png" />
+  <style>
+    :root{
+      --bg:#0a0e0d; --bg-soft:#0e1311; --panel:#10161400; --panel-2:#121917;
+      --line:#1d2724; --line-2:#28362f;
+      --ink:#f2f6f4; --ink-soft:#9fb1aa; --ink-dim:#6a7c75;
+      --emerald:#19e08a; --emerald-deep:#0c9b5e; --emerald-glow:rgba(25,224,138,.13);
+      --maxw:1080px; --radius:16px;
+      --sans:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Helvetica,Arial,sans-serif;
+      --mono:ui-monospace,"SF Mono","JetBrains Mono",Menlo,monospace;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{scroll-behavior:smooth}
+    body{font-family:var(--sans);background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+    body[data-lang="en"] .pt{display:none}
+    body[data-lang="pt"] .en{display:none}
+    a{color:inherit;text-decoration:none}
+    .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+    .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:var(--emerald);margin-bottom:14px}
+    .muted{color:var(--ink-soft)}
+
+    /* NAV */
+    nav{position:sticky;top:0;z-index:50;backdrop-filter:blur(12px);background:rgba(10,14,13,.78);border-bottom:1px solid var(--line)}
+    .nav-inner{display:flex;align-items:center;gap:20px;height:64px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em;font-size:18px}
+    .brand img{width:30px;height:30px;border-radius:8px;display:block}
+    .nav-links{display:flex;gap:26px;margin-left:auto;font-size:14px;color:var(--ink-soft)}
+    .nav-links a:hover{color:var(--ink)}
+    .lang{display:inline-flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden;margin-left:8px}
+    .langbtn{background:none;border:0;color:var(--ink-dim);font:inherit;font-size:12px;font-weight:600;padding:6px 11px;cursor:pointer;letter-spacing:.04em}
+    .langbtn.active{background:var(--emerald);color:#04130c}
+    .nav-cta{font-size:13px;font-weight:600;padding:8px 14px;border:1px solid var(--line-2);border-radius:999px;color:var(--ink);transition:.2s}
+    .nav-cta:hover{border-color:var(--emerald);color:var(--emerald)}
+    @media(max-width:760px){.nav-links{display:none}}
+
+    /* HERO */
+    header.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+    .hero::before{content:"";position:absolute;inset:0;background:radial-gradient(620px 360px at 78% 0%,var(--emerald-glow),transparent 70%);pointer-events:none}
+    .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center;padding:84px 0 92px}
+    .hero h1{font-size:clamp(30px,5vw,50px);line-height:1.06;letter-spacing:-.02em;font-weight:760;margin-bottom:20px}
+    .hero h1 .accent{color:var(--emerald)}
+    .hero p.sub{font-size:clamp(16px,2vw,19px);color:var(--ink-soft);max-width:48ch;margin-bottom:30px}
+    .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:15px;padding:13px 22px;border-radius:12px;transition:.2s}
+    .btn-primary{background:var(--emerald);color:#04130c}
+    .btn-primary:hover{background:#2bf09a}
+    .btn-ghost{border:1px solid var(--line-2);color:var(--ink)}
+    .btn-ghost:hover{border-color:var(--emerald);color:var(--emerald)}
+    .hero-mark{position:relative;display:flex;justify-content:center;align-items:center}
+    .hero-mark img{width:min(320px,72%);border-radius:24px;opacity:.96;box-shadow:0 30px 80px -30px rgba(25,224,138,.35)}
+    @media(max-width:820px){.hero-grid{grid-template-columns:1fr;padding:56px 0 64px}.hero-mark{order:-1;margin-bottom:18px}.hero-mark img{width:160px}}
+
+    /* SECTIONS */
+    section{padding:72px 0;border-bottom:1px solid var(--line)}
+    .sec-head{max-width:62ch;margin-bottom:36px}
+    .sec-head h2{font-size:clamp(24px,3.4vw,34px);letter-spacing:-.02em;font-weight:720;line-height:1.15}
+    .sec-head p{margin-top:14px;color:var(--ink-soft);font-size:17px}
+    .card{background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius);padding:26px 26px}
+    .grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+    .grid-4{display:grid;grid-template-columns:repeat(2,1fr);gap:18px}
+    @media(max-width:760px){.grid-2,.grid-4{grid-template-columns:1fr}}
+
+    /* THESIS */
+    .thesis .card{padding:34px}
+    .thesis p.body{font-size:clamp(17px,2.2vw,21px);line-height:1.62;color:#e8efeb}
+    .cite{display:block;margin-top:22px;font-family:var(--mono);font-size:12.5px;color:var(--ink-dim);letter-spacing:.02em}
+
+    /* WHY — stacked analysis */
+    .analysis .item{padding:26px 0;border-top:1px solid var(--line)}
+    .analysis .item:first-child{border-top:0;padding-top:0}
+    .analysis .item h3{font-size:18px;font-weight:680;margin-bottom:10px;display:flex;gap:10px;align-items:baseline}
+    .analysis .item h3 .n{font-family:var(--mono);font-size:13px;color:var(--emerald)}
+    .analysis .item p{color:var(--ink-soft);font-size:16px}
+
+    /* VALUE */
+    .vcard h3{font-size:18px;font-weight:680;margin-bottom:8px;color:var(--ink)}
+    .vcard .tag{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--emerald);display:block;margin-bottom:10px}
+    .vcard p{color:var(--ink-soft);font-size:15.5px}
+
+    /* MANOR */
+    .manor .card{border-color:var(--line-2);background:linear-gradient(180deg,rgba(25,224,138,.05),transparent)}
+    .manor p{font-size:clamp(16px,2vw,19px);color:#e3ebe7;line-height:1.62}
+
+    /* PUSHBACK */
+    .push .item{padding:24px 0;border-top:1px solid var(--line)}
+    .push .item:first-child{border-top:0;padding-top:0}
+    .push .item h3{font-size:17px;font-weight:680;margin-bottom:8px;color:var(--ink)}
+    .push .item p{color:var(--ink-soft);font-size:15.5px}
+
+    /* CONTACT */
+    .contact .card{text-align:center;padding:48px 28px}
+    .contact h2{font-size:clamp(22px,3vw,30px);font-weight:720;letter-spacing:-.02em;margin-bottom:12px}
+    .contact p{color:var(--ink-soft);margin-bottom:24px;font-size:17px}
+    .mail{font-family:var(--mono);font-size:15px;color:var(--emerald);border:1px solid var(--line-2);padding:10px 18px;border-radius:10px;display:inline-block}
+
+    /* FOOTER */
+    footer{padding:40px 0;color:var(--ink-dim);font-size:13.5px}
+    .foot-inner{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+    .foot-inner img{width:24px;height:24px;border-radius:6px}
+    .foot-links{margin-left:auto;display:flex;gap:20px;flex-wrap:wrap}
+    .foot-links a:hover{color:var(--ink)}
+
+    /* reveal */
+    .reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
+    .reveal.in{opacity:1;transform:none}
+    @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
+  </style>
+</head>
+<body data-lang="pt">
+
+  <nav>
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top">
+        <img src="assets/logo.png" alt="Splitax" />
+        <span>Splitax</span>
+      </a>
+      <div class="nav-links">
+        <a href="#thesis"><span class="pt">Tese</span><span class="en">Thesis</span></a>
+        <a href="#why"><span class="pt">Por que falha</span><span class="en">Why it breaks</span></a>
+        <a href="#value"><span class="pt">Valor</span><span class="en">Value</span></a>
+        <a href="#pushback"><span class="pt">Contra</span><span class="en">Pushback</span></a>
+      </div>
+      <div class="lang" role="group" aria-label="Language">
+        <button class="langbtn active" data-lang="pt">PT</button>
+        <button class="langbtn" data-lang="en">EN</button>
+      </div>
+      <a class="nav-cta" href="#contact"><span class="pt">Falar com o time</span><span class="en">Talk to the team</span></a>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="wrap hero-grid">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="pt">Recuperação de tributo no split payment</span><span class="en">Split-payment tax recovery</span></p>
+        <h1><span class="pt">A Splitax vigia todo pagamento que a Reforma Tributária <span class="accent">divide</span>.</span><span class="en">Splitax watches every payment the Reforma Tributária <span class="accent">splits</span>.</span></h1>
+        <p class="sub"><span class="pt">Auditoria por pagamento, consolidação e recuperação ponta a ponta do IBS e do CBS cobrados errado no momento da liquidação.</span><span class="en">Per-payment audit, bundling and end-to-end recovery of IBS and CBS collected wrong at the moment of settlement.</span></p>
+        <div class="hero-cta">
+          <a class="btn btn-primary" href="#contact"><span class="pt">Falar com o time →</span><span class="en">Talk to the team →</span></a>
+          <a class="btn btn-ghost" href="#thesis"><span class="pt">Ler a tese ↓</span><span class="en">Read the thesis ↓</span></a>
+        </div>
+      </div>
+      <div class="hero-mark">
+        <img src="assets/logo-alt.png" alt="Splitax mark" />
+      </div>
+    </div>
+  </header>
+
+  <!-- THESIS -->
+  <section class="thesis" id="thesis">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow"><span class="pt">A tese</span><span class="en">The thesis</span></p>
+        <h2><span class="pt">A tese em um parágrafo</span><span class="en">The thesis in one paragraph</span></h2>
+      </div>
+      <div class="card reveal">
+        <p class="body"><span class="pt">A Reforma Tributária tira a arrecadação da empresa e a coloca no rail de pagamento. Os arts. 31 a 35 da LC 214/2025 determinam que IBS e CBS sejam segregados e cobrados no momento da liquidação financeira: quando o cliente paga, o tributo já nasce separado, o dinheiro vai para o Fisco e apenas o valor líquido chega ao fornecedor. Isso cria algo que o Brasil nunca teve: um fato gerador em cada pagamento, calculado por um terceiro (banco, adquirente, arranjo Pix) contra uma plataforma pública, com o contribuinte como espectador. Cada um desses eventos pode estar errado. A Splitax é a camada que vigia cada pagamento, concilia nota fiscal, liquidação e recolhimento, aponta o que foi dividido errado, consolida as discrepâncias e executa a recuperação ponta a ponta (restituição, ressarcimento, crédito, contestação). A Manor faz a inteligência jurídica. A Splitax faz o caixa.</span><span class="en">The Reforma Tributária moves tax collection out of the company and into the payment rail. Arts. 31 to 35 of LC 214/2025 determine that IBS and CBS are segregated and collected at the moment of financial settlement: when the customer pays, the tax is already born separated, the money goes to the Fisco and only the net value reaches the supplier. That creates something Brazil has never had: a tax event on every single payment, computed by a third party (bank, acquirer, Pix arrangement) against a public platform, with the taxpayer as a spectator. Every one of those events can be wrong. Splitax is the layer that watches every payment, reconciles invoice, settlement and recolhimento, flags what was split wrong, bundles the discrepancies and runs the recovery end to end (restituição, ressarcimento, crédito, contestation). Manor does the legal intelligence. Splitax does the cash.</span></p>
+        <span class="cite">— Correio Braziliense</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- WHY -->
+  <section class="why analysis" id="why">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow"><span class="pt">Por que falha</span><span class="en">Why it breaks</span></p>
+        <h2><span class="pt">Por que os erros são estruturais, não casos isolados</span><span class="en">Why errors are structural, not edge cases</span></h2>
+      </div>
+      <div class="reveal">
+        <div class="item">
+          <h3><span class="n">01</span> <span class="pt">O rito de reversão</span><span class="en">The reversal rite</span></h3>
+          <p><span class="pt">A mecânica já está definida e é complexa. O art. 57 do regulamento do CBS (replicado para o IBS pela Resolução CGIBS 6/2026) distingue cancelamento de devolução e submete ambos a um rito documental obrigatório: toda reversão exige seu próprio documento fiscal. O valor cobrado via split payment é transferido de volta ao fornecedor, em dinheiro, em até três dias úteis (art. 47, §13, LC 214/2025, incluído pela LC 227/2026), e o marco inicial desse prazo varia conforme o caso. Esse ressarcimento de três dias só ocorre se a documentação estiver correta. Em escala, não estará.</span><span class="en">The mechanics are already defined and they are complex. Art. 57 of the CBS regulation (replicated for IBS by Resolução CGIBS 6/2026) distinguishes cancellation from return and submits both to a mandatory documentary rite: every reversal requires its own fiscal document. The amount collected via split payment is transferred back to the supplier, in cash, within three business days (art. 47, §13, LC 214/2025, included by LC 227/2026), and the starting point of that deadline varies by case. That three day refund only happens if the paperwork is right. It will not be right at scale.</span></p>
+          <span class="cite">Portaljuristec · TafelliRitz</span>
+        </div>
+        <div class="item">
+          <h3><span class="n">02</span> <span class="pt">O problema dos recebíveis</span><span class="en">The receivables problem</span></h3>
+          <p><span class="pt">O fornecedor indicado no Informe de Segregação pode já ter vendido o recebível e recebido o adiantamento, e ainda assim continua sujeito à operação original para fins tributários, de modo que uma devolução ou cancelamento gera um desalinhamento econômico. Contratos de cessão assinados sem cláusula para esse cenário gerarão litígio.</span><span class="en">Then the receivables problem. The supplier indicated in the Informe de Segregação may already have sold the receivable and received the advance, and still remains the subject of the original operation for tax purposes, so a return or cancellation creates an economic misalignment. Assignment contracts signed without a clause for this scenario will generate litigation.</span></p>
+          <span class="cite">Conjur · Escolasuperioresn</span>
+        </div>
+        <div class="item">
+          <h3><span class="n">03</span> <span class="pt">O lado do comprador</span><span class="en">The buyer side</span></h3>
+          <p><span class="pt">E o lado do comprador, que acho ser o dinheiro maior. A partir de 2027, a apropriação de crédito fica condicionada à extinção do débito da operação de aquisição (arts. 27 e 47 da LC 214/2025). O crédito de IBS e CBS passa a depender da efetiva arrecadação. Assim, um split quebrado do fornecedor vira crédito bloqueado do comprador. Duas partes com caixa em jogo em cada discrepância.</span><span class="en">And the buyer side, which I think is the bigger money. From 2027, credit appropriation is conditioned on the extinction of the debit of the acquisition operation (arts. 27 and 47 of LC 214/2025). Credit of IBS and CBS starts to depend on effective collection. So a supplier's broken split becomes the buyer's blocked credit. Two parties with cash at stake on every discrepancy.</span></p>
+          <span class="cite">Piraciadv · v360</span>
+        </div>
+        <div class="item">
+          <h3><span class="n">04</span> <span class="pt">A via de disputa já está sendo escrita</span><span class="en">The dispute rail is being written in</span></h3>
+          <p><span class="pt">Ainda: recolhimento pelo adquirente (art. 36) para pagamentos fora de arranjos habilitados, o procedimento simplificado com retenção de percentual fixo e encontro de contas mensal, e a Resolução CGIBS 6/2026 já tem seções dedicadas a pagamento indevido ou a maior, ressarcimento e penalidades administrativas específicas do split payment. A via de disputa está sendo escrita no regulamento antes de um real sequer ser dividido.</span><span class="en">Plus: recolhimento pelo adquirente (art. 36) for payments outside habilitated arrangements, the procedimento simplificado with fixed percentage retention and monthly encontro de contas, and Resolução CGIBS 6/2026 already has dedicated sections on pagamento indevido ou a maior, ressarcimento and administrative penalties specific to split payment. The dispute rail is being written into the regulation before a single real is split.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VALUE -->
+  <section class="value" id="value">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow"><span class="pt">O que fazemos</span><span class="en">What we do</span></p>
+        <h2><span class="pt">O valor que a Splitax agrega</span><span class="en">The value Splitax adds</span></h2>
+      </div>
+      <div class="grid-4">
+        <div class="card vcard reveal">
+          <span class="tag"><span class="pt">Auditoria por pagamento</span><span class="en">Per-payment audit</span></span>
+          <h3><span class="pt">Veredito em cada liquidação</span><span class="en">A verdict on every settlement</span></h3>
+          <p><span class="pt">Não uma revisão mensal de apuração. Cada liquidação recebe um veredito: split correto, retenção a maior, retenção a menor, ausente (pagamento fora do rail) ou reversão pendente. Tripla conciliação: destaque da NF-e/NFS-e vs. Informe de Segregação vs. liquidação bancária.</span><span class="en">Not a monthly apuração review. Each settlement gets a verdict: split correct, over retained, under retained, missing (payment outside the rail), or reversal pending. Three-way match: NF-e/NFS-e destaque vs. Informe de Segregação vs. bank settlement.</span></p>
+        </div>
+        <div class="card vcard reveal">
+          <span class="tag"><span class="pt">Consolidação</span><span class="en">Bundling</span></span>
+          <h3><span class="pt">Pequeno demais para advogado</span><span class="en">Too small for a lawyer</span></h3>
+          <p><span class="pt">Discrepâncias individuais são pequenas demais para um advogado e jurídicas demais para a equipe fiscal. Agregadas mensalmente em um dossiê por contribuinte, passam a valer a pena.</span><span class="en">Individual discrepancies are too small for a lawyer and too legal for the fiscal team. Aggregated monthly into one dossier per taxpayer, they become worth pursuing.</span></p>
+        </div>
+        <div class="card vcard reveal">
+          <span class="tag"><span class="pt">Execução</span><span class="en">Execution</span></span>
+          <h3><span class="pt">Recuperação ponta a ponta</span><span class="en">End-to-end recovery</span></h3>
+          <p><span class="pt">O pedido de restituição, a manifestação de inconformidade, a cláusula de cessão, a correção na apuração assistida. Redigidos a partir do corpus da Manor, com garantia anticarbono, protocolados e monitorados até o dinheiro voltar. Fee de sucesso sobre o caixa recuperado.</span><span class="en">The pedido de restituição, the manifestação de inconformidade, the cessão contract clause, the apuração assistida correction. Drafted from Manor's corpus, with the anti-hallucination guarantee, filed and monitored until the money comes back. Success fee on recovered cash.</span></p>
+        </div>
+        <div class="card vcard reveal">
+          <span class="tag"><span class="pt">Proteção do comprador</span><span class="en">Buyer protection</span></span>
+          <h3><span class="pt">O gancho de retenção</span><span class="en">The retention hook</span></h3>
+          <p><span class="pt">Alerta o adquirente quando o split de um fornecedor falhou e seu crédito está em risco. Esse é um gancho de retenção para o qual ninguém mais está posicionado.</span><span class="en">Alert the acquirer when a supplier's split failed and its credit is at risk. That is a retention hook nobody else is positioned for.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MANOR -->
+  <section class="manor" id="manor">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow"><span class="pt">Por que nós</span><span class="en">Why us</span></p>
+        <h2><span class="pt">O que a Manor traz que um SaaS fiscal não copia</span><span class="en">What Manor brings that a fiscal SaaS cannot copy</span></h2>
+      </div>
+      <div class="card reveal">
+        <p><span class="pt">O corpus (CARF, STJ, STF, RFB, TRFs, agora atos da CGIBS), o motor de monitoramento já construído para "Atualizações", o pipeline de geração de documentos e a garantia. O Raio-X CNPJ vira Raio-X por transação. O FDTL vira a pessoa que assina o lote. A Splitax é a camada de execução da Manor, desdobrada porque o cliente (CFO, tesouraria, PSP) não é o cliente da Manor (advogado tributarista).</span><span class="en">The corpus (CARF, STJ, STF, RFB, TRFs, now CGIBS acts), the monitoring engine already built for "Atualizações", the document generation pipeline, and the guarantee. The Raio-X CNPJ becomes Raio-X per transaction. The FDTL becomes the person who signs the bundle. Splitax is Manor's execution layer, spun out because the customer (CFO, tesouraria, PSP) is not Manor's customer (tax lawyer).</span></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- PUSHBACK -->
+  <section class="pushback push" id="pushback">
+    <div class="wrap">
+      <div class="sec-head reveal">
+        <p class="eyebrow"><span class="pt">Onde contestamos</span><span class="en">Where we push back</span></p>
+        <h2><span class="pt">Onde eu contesto</span><span class="en">Where I push back</span></h2>
+      </div>
+      <div class="reveal">
+        <div class="item">
+          <h3><span class="pt">Timing — a receita só existe depois dos erros</span><span class="en">Timing — the revenue comes after the errors</span></h3>
+          <p><span class="pt">Em 2026 não há split em produção: é o ano-teste, com alíquotas simbólicas de CBS 0,9% e IBS 0,1%. O cronograma oficial coloca 2026 como homologação e 2027 como testes e adoção opcional, e, segundo a Receita Federal, reportado pelo G1, o split payment obrigatório deve começar só em 2028; não há ainda ato conjunto que declare a operação obrigatória. Receita de recuperação não existe antes de haver erros. Realista: construir e pilotar em 2027 com early adopters B2B, monetizar em 2028. A narrativa de fundraising tem de ser honesta quanto a isso.</span><span class="en">In 2026 there is no split in production: it is the test year, with symbolic rates of CBS 0.9% and IBS 0.1%. The official schedule places 2026 as homologation and 2027 as tests and optional adoption, and according to Receita Federal, reported by G1, mandatory split payment should start only in 2028; there is no joint act yet declaring mandatory operation. Recovery revenue does not exist before there are errors. Realistic: build and pilot in 2027 with early B2B adopters, monetize 2028. Fundraising narrative has to be honest about that.</span></p>
+          <span class="cite">v360 · Piraciadv</span>
+        </div>
+        <div class="item">
+          <h3><span class="pt">Concorrência — conciliação é recurso, não empresa</span><span class="en">Competition — reconciliation is a feature, not a company</span></h3>
+          <p><span class="pt">Dashboards de conciliação serão construídos por ERPs, pelos próprios adquirentes e por SaaS fiscais (v360, Thomson Reuters, ROIT estão todos publicando sobre isso). Conciliação é um recurso. A empresa é a execução e o fee de sucesso. Se a Splitax entregar só o dashboard, perde.</span><span class="en">Reconciliation dashboards will be built by ERPs, by the acquirers themselves and by fiscal SaaS (v360, Thomson Reuters, ROIT are all publishing on this). Reconciliation is a feature. The company is the execution and the success fee. If Splitax ships only the dashboard, it loses.</span></p>
+        </div>
+        <div class="item">
+          <h3><span class="pt">Conflito ROIT — canal, concorrente ou comprador?</span><span class="en">ROIT conflict — channel, competitor or acquirer?</span></h3>
+          <p><span class="pt">A ROIT faz recuperação de crédito e é controladora do Portal da Reforma Tributária, seu parceiro atual. A Splitax se sobrepõe a eles diretamente. Decida agora se são um canal, um concorrente ou um comprador, antes de fechar o acordo do Portal.</span><span class="en">ROIT does recuperação de crédito and is the parent of Portal da Reforma Tributária, your current partner. Splitax overlaps with them directly. Decide now whether they are a channel, a competitor or an acquirer, before the Portal deal closes.</span></p>
+        </div>
+        <div class="item">
+          <h3><span class="pt">Acesso a dados — o terceiro feed é o risco real</span><span class="en">Data access — the third feed is the real risk</span></h3>
+          <p><span class="pt">O Informe de Segregação fica entre os PSPs e o Fisco. São necessários três feeds: documentos fiscais (disponíveis), liquidação bancária (Open Finance, viável) e a visão do contribuinte na plataforma CGIBS/RFB (apuração assistida, ainda em especificação). O terceiro feed é o risco técnico real. Confirme o que o contribuinte de fato verá antes de prometer vereditos por pagamento.</span><span class="en">The Informe de Segregação sits between PSPs and the Fisco. You need three feeds: fiscal documents (available), bank settlement (Open Finance, doable), and the taxpayer's view on the CGIBS/RFB platform (apuração assistida, still being specified). Third feed is the real technical risk. Confirm what the taxpayer will actually see before promising per payment verdicts.</span></p>
+        </div>
+        <div class="item">
+          <h3><span class="pt">Lacunas regulatórias — não construa lógica sobre o pendente</span><span class="en">Regulatory gaps — don't build on what's pending</span></h3>
+          <p><span class="pt">Ainda pendentes: a versão final dos manuais de operações e prazos, o cronograma de implementação, as hipóteses de adoção opcional e os percentuais aplicáveis ao procedimento simplificado. Não construa lógica de produto sobre nenhum deles ainda.</span><span class="en">Still pending: the final version of the operations and timing manuals, the implementation schedule, the hypotheses of optional adoption, and the percentages applicable to the simplified procedure. Do not build product logic on any of those yet.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONTACT -->
+  <section class="contact" id="contact">
+    <div class="wrap">
+      <div class="card reveal">
+        <h2><span class="pt">Fale com a Splitax</span><span class="en">Talk to Splitax</span></h2>
+        <p><span class="pt">A Splitax é a camada de execução da Manor para a recuperação no split payment. Fale com o time.</span><span class="en">Splitax is Manor's execution layer for split-payment recovery. Talk to the team.</span></p>
+        <a class="mail" href="mailto:contato@splitax.com">contato@splitax.com</a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap foot-inner">
+      <img src="assets/logo.png" alt="Splitax" />
+      <span><span class="pt">Splitax — Recuperação de tributo por pagamento no split. Camada de execução da Manor.</span><span class="en">Splitax — Per-payment split-tax recovery. Manor's execution layer.</span> © <span id="y">2026</span></span>
+      <div class="foot-links">
+        <a href="#thesis"><span class="pt">Tese</span><span class="en">Thesis</span></a>
+        <a href="#value"><span class="pt">Valor</span><span class="en">Value</span></a>
+        <a href="#pushback"><span class="pt">Contra</span><span class="en">Pushback</span></a>
+        <a href="#contact"><span class="pt">Contato</span><span class="en">Contact</span></a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function(){
+      var body=document.body;
+      try{var s=localStorage.getItem('splitax-lang');if(s)body.dataset.lang=s;}catch(e){}
+      var btns=document.querySelectorAll('.langbtn');
+      function setLang(l){
+        body.dataset.lang=l;
+        try{localStorage.setItem('splitax-lang',l);}catch(e){}
+        btns.forEach(function(b){b.classList.toggle('active',b.dataset.lang===l);});
+      }
+      btns.forEach(function(b){b.addEventListener('click',function(){setLang(b.dataset.lang);});});
+
+      var io=new IntersectionObserver(function(es){
+        es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+      },{threshold:.12});
+      document.querySelectorAll('.reveal').forEach(function(el){io.observe(el);});
+
+      var y=document.getElementById('y');if(y)y.textContent=new Date().getFullYear();
+    })();
+  </script>
+</body>
+</html>
